@@ -1,0 +1,4 @@
+#!/bin/bash
+
+docker rmi $(docker images -f dangling=true -q)
+docker ps -a | awk  '/Exited.*minutes|Exited.*hour.?\ ago/ { print $1 }' | xargs --no-run-if-empty docker rm

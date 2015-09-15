@@ -1,0 +1,4 @@
+[docker]
+docker-demo1.example.com docker_range=172.17.64.0/18 swarm_manager=1
+docker-demo2.example.com docker_range=172.17.128.0/18
+docker-demo3.example.com docker_range=172.17.192.0/18

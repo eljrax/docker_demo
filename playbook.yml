@@ -1,0 +1,187 @@
+---
+# This is a quick and dirty playbook which sets up an openvswitch mesh 
+# network between an arbitrary number of servers.
+# It sets up Docker to use this network to allow cross-host
+# communication for containers. 
+# It sets up a docker-swarm cluster across the hosts, with the one having the
+# host-var swarm_manager running the manager container.
+# Check/modify the vars below to suit your needs. This is developed and tested
+# on Ubuntu 14.04 VMs on the Rackspace cloud using a Cloud Network between the hosts.
+#
+# Also note that you need to do the subnetting yourself, and set the
+# docker_range host-var in the inventory to split up the ranges docker will
+# allocate to containers. 
+#
+# Note: It will open up the UFW firewall entirely on the interface you specify
+# as 'cloud_network_iface'. This should be a private network shared between the
+# hosts.
+#
+# Author: Erik Ljungstrom, Rackspace Ltd. 2015
+#
+- hosts: docker
+  vars:
+    # Directory where the openvswitch sources will be extracted to
+    # The tarball will be downloaded to this directory
+    ovs_dir: /usr/local/src
+    ovs_pkg_name: openvswitch-2.4.0
+    ovs_deb_names:
+        - openvswitch-common_2.4.0-1_amd64.deb
+        - openvswitch-switch_2.4.0-1_amd64.deb
+    cloud_network_iface: eth2
+    bridge_name: br0
+    swarm_node_list: /root/swarm_node_list
+    swarm_cluster_id_file: /root/swarm_cluster_id
+  remote_user: root
+  tasks:
+
+
+  # TODO: Get this into separate /etc/network/interfaces.d files
+  - name: Generate OVS part of networking script
+    template: src=templates/network_interfaces.j2 dest=/root/docker-interfaces
+
+  - name: Check whether networking script has been merged in already
+    shell: grep "OVS config - ansible" /etc/network/interfaces
+    register: net_conf_check
+    ignore_errors: true
+
+  - name: Merge interface config with networks/interfaces if necessary
+    shell: cat docker-interfaces >> /etc/network/interfaces
+    when: net_conf_check|failed
+
+
+    # We build a more recent openvswitch version than what's provided by Ubuntu
+    # Tested with 2.4.0
+  - name: Download openvswitch
+    get_url: 
+        # checksum=sha1:d091902579cf5101df851d2ec69c75a6bcbd49fc
+        dest={{ ovs_dir}}/{{ ovs_pkg_name }}.tar.gz
+        url=http://openvswitch.org/releases/{{ ovs_pkg_name }}.tar.gz
+
+  - name: Extract ovs sources
+    unarchive:
+        creates={{ ovs_dir }}/{{ ovs_pkg_name }}
+        dest={{ ovs_dir }}
+        copy=no
+        src={{ ovs_dir }}/{{ ovs_pkg_name}}.tar.gz
+
+  - name: Install build dependencies
+    apt: pkg={{ item }} state=latest update_cache=yes cache_valid_time=600
+    with_items:
+        - build-essential
+        - fakeroot
+        - debhelper
+        - autoconf
+        - automake
+        - bzip2
+        - libssl-dev
+        - openssl
+        - graphviz
+        - python-all
+        - procps
+        - python-qt4
+        - python-zopeinterface
+        - python-twisted-conch
+        - libtool
+
+  - name: Check if debs already exists
+    stat: path={{ ovs_dir}}/{{ item }}
+    with_items: "{{ ovs_deb_names }}"
+    register: debs_exists 
+
+  # This will create ovs 2.4.0 .debs in {{ ovs_dir }} which will be installed on all servers if the .deb files does not exist already
+  - name: Build .debs
+    shell: chdir={{ ovs_dir }}/{{ ovs_pkg_name }} export DEB_BUILD_OPTIONS='parallel=8 nocheck' ; fakeroot debian/rules binary
+    when: (debs_exists.results[0].stat.exists == False) or (debs_exists.results[1].stat.exists == False)
+
+ 
+  - name: Add docker repository key
+    apt_key: keyserver=p80.pool.sks-keyservers.net id=58118E89F3A912897C070ADBF76221572C52609D state=present 
+  - name: Add docker repository
+    apt_repository: repo="deb https://apt.dockerproject.org/repo ubuntu-trusty main" state=present
+  
+  - name: Install docker and bridge-utils (dependency for ovs)
+    apt: pkg={{ item }} state=latest update_cache=yes cache_valid_time=600
+    with_items:
+        - bridge-utils
+        - docker-engine
+  
+  - name: Write docker-defaults
+    template: src=templates/docker-defaults.j2 dest=/etc/default/docker
+    register: defaults_changed
+
+  - name: Restart docker
+    service: name=docker state=restarted
+    when: defaults_changed.changed
+
+  # Install docker-compose
+  - name: Install docker-compose
+    get_url: url=https://github.com/docker/compose/releases/download/1.4.0/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}
+        dest=/usr/local/bin/docker-compose 
+
+  - name: Make docker-compose executable
+    file: path=/usr/local/bin/docker-compose mode=770
+
+  # Install the OVS packages separately due to https://github.com/ansible/ansible/issues/9235
+  - name: Install ovs common
+    apt: deb={{ ovs_dir }}/{{ ovs_deb_names[0] }} state=present
+
+  - name: Install ovs switch
+    apt: deb={{ ovs_dir }}/{{ ovs_deb_names[1] }} state=present
+ 
+    # Because http://askubuntu.com/questions/572497/cant-connect-to-pptp-vpn-with-ufw-enabled-on-ubuntu-14-04-with-kernel-3-18
+  - name: Allow GRE traffic
+    lineinfile: dest=/etc/ufw/before.rules insertbefore="# drop INVALID packets" line="-A ufw-before-input -p 47 -i {{ cloud_network_iface }} -j ACCEPT"
+
+  - name: Open firewall on cloud-network interface
+    ufw: direction=in 
+        interface={{ cloud_network_iface }}
+        rule=allow
+
+  - name: Open firewall on cloud-network interface
+    ufw: direction=out
+        interface={{ cloud_network_iface }}
+        rule=allow
+
+  - name: Open firewall from containers to host
+    ufw: direction=in
+        interface=docker0
+        rule=allow
+ 
+  - name: Reload ufw
+    ufw: state=reloaded
+
+    # Install and set up docker swarm - set swarm_manager=1 on one of the hosts
+    # in your inventory file
+    
+    # This script is pure convenience and not part of day to day runnings
+  - name: Put clean-up script on servers
+    template: src=templates/cleandocker.sh.j2 dest=/usr/local/bin/cleandocker mode=770
+
+    
+  - name: Check whether we already have a swarm cluster running
+    stat: path={{ swarm_node_list }}
+    register: swarm_id_exists
+
+    # We use file discovery, but using consul or etcd or something along those
+    # lines is usually a bit more robust if you often add or remove hosts
+  - name: Write swarm node list
+    template: src=templates/swarm_nodes.j2 dest={{ swarm_node_list }}
+
+  # Choosing to not use the docker ansible module here
+  - name: Check whether swarm node is already running
+    shell: docker ps -f label=swarm_join=true | egrep "swarm.*Up" || echo "not running"
+    register: swarm_node_running
+
+  - name: Start swarm node if not already running
+    shell: docker run -l swarm_join=true -d -v {{ swarm_node_list }}:/cluster swarm  join --addr=$(ip a s {{ cloud_network_iface }}  | awk '/inet\ / { print $2 }' |sed 's/\/.*//'):2375 file:///cluster
+    when: swarm_node_running.stdout.find('not running') == 0 
+
+  - name: Check whether swarm manager is already running
+    shell: docker ps -f label=swarm_manager=true | egrep "swarm.*Up" || echo "not running"
+    register: swarm_manager_running
+    when: swarm_manager is defined
+
+  - name: Run the swarm manager
+    shell: docker run -l swarm_manager=true -d -v {{ swarm_node_list }}:/cluster -p 2376:2375 swarm manage file:///cluster
+    when: swarm_manager is defined and swarm_manager_running.stdout.find('not running') == 0
+

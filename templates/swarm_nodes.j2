@@ -1,0 +1,3 @@
+{% for host in groups['docker'] %}
+{{ hostvars[host]['ansible_eth2']['ipv4']['address'] }}:2375
+{% endfor %}
