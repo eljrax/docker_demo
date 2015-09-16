@@ -24,10 +24,19 @@ wait_ip() {
 wait_ip 5
 wait_ip 15
 
+{% set manager_ip=[] %}
+{% for host in groups['docker'] %}
+{% if 'swarm_manager' in hostvars[host] %}
+    {% set b = manager_ip.append(hostvars[host]['ansible_' + cloud_network_iface]['ipv4']['address']) %}    
+{% endif %}
+{% endfor %}
+{% set c = manager_ip|join(' ') %}
 DOCKER_OPTS="
     -H unix:///var/run/docker.sock
     -H tcp://0.0.0.0:2375
     --fixed-cidr=$CIDR
     --bridge $BRIDGE
     --mtu 1462
+    --log-driver=fluentd
+    --log-opt=fluentd-address={{ c }}:24224
 "
