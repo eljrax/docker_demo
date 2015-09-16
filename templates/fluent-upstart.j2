@@ -1,0 +1,6 @@
+description "Fluentd"
+start on runlevel [2345]
+stop on runlevel [016]
+respawn
+respawn limit 5 60
+exec sudo -u fluentd /usr/local/bin/fluentd -c /etc/fluent.conf --log {{ fluentd_log_directory }}/fluentd.log
