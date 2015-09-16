@@ -173,7 +173,7 @@
     register: swarm_node_running
 
   - name: Start swarm node if not already running
-    shell: docker run -l swarm_join=true -d -v {{ swarm_node_list }}:/cluster swarm  join --addr=$(ip a s {{ cloud_network_iface }}  | awk '/inet\ / { print $2 }' |sed 's/\/.*//'):2375 file:///cluster
+    shell: docker run --restart=always -l swarm_join=true -d -v {{ swarm_node_list }}:/cluster swarm  join --addr={{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'] }}:2375 file:///cluster
     when: swarm_node_running.stdout.find('not running') == 0 
 
   - name: Check whether swarm manager is already running
@@ -182,6 +182,6 @@
     when: swarm_manager is defined
 
   - name: Run the swarm manager
-    shell: docker run -l swarm_manager=true -d -v {{ swarm_node_list }}:/cluster -p 2376:2375 swarm manage file:///cluster
+    shell: docker run --restart=always -l swarm_manager=true -d -v {{ swarm_node_list }}:/cluster -p 2376:2375 swarm manage file:///cluster
     when: swarm_manager is defined and swarm_manager_running.stdout.find('not running') == 0
 
