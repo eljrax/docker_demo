@@ -29,11 +29,11 @@
         - openvswitch-switch_2.4.0-1_amd64.deb
     cloud_network_iface: eth2
     bridge_name: br0
+    fluentd_log_directory: /var/log/fluentd_logs
     swarm_node_list: /root/swarm_node_list
     swarm_cluster_id_file: /root/swarm_cluster_id
   remote_user: root
   tasks:
-
 
   # TODO: Get this into separate /etc/network/interfaces.d files
   - name: Generate OVS part of networking script
@@ -105,13 +105,6 @@
         - bridge-utils
         - docker-engine
   
-  - name: Write docker-defaults
-    template: src=templates/docker-defaults.j2 dest=/etc/default/docker
-    register: defaults_changed
-
-  - name: Restart docker
-    service: name=docker state=restarted
-    when: defaults_changed.changed
 
   # Install docker-compose
   - name: Install docker-compose
@@ -150,6 +143,45 @@
   - name: Reload ufw
     ufw: state=reloaded
 
+
+
+  - name: Install ruby on swarm manager node for fluentd
+    apt: pkg={{ item }} state=latest update_cache=yes cache_valid_time=600
+    with_items:
+        - ruby
+        - ruby-dev
+    when: swarm_manager is defined
+
+  - name: Install fluentd
+    gem: name=fluentd state=present version=0.12.15 user_install=no 
+    when: swarm_manager is defined
+
+  - name: Create fluentd config file
+    template: src=templates/fluent.conf dest=/etc/fluent.conf
+    when: swarm_manager is defined 
+
+  - name: Create fluentd user
+    user: name=fluentd state=present createhome=yes home={{ fluentd_log_directory }}
+        shell=/usr/sbin/nologin
+    when: swarm_manager is defined
+
+  - name: Create fluentd upstart config 
+    template: src=templates/fluent-upstart.j2  dest=/etc/init/fluent.conf
+    when: swarm_manager is defined
+
+  - name: Enable fluent service
+    service: name=fluent enabled=yes state=started
+    when: swarm_manager is defined
+
+   ################### DOCKER STUFF ####################
+   
+  - name: Write docker-defaults
+    template: src=templates/docker-defaults.j2 dest=/etc/default/docker
+    register: defaults_changed
+
+  - name: Restart docker
+    service: name=docker state=restarted
+    when: defaults_changed.changed
     # Install and set up docker swarm - set swarm_manager=1 on one of the hosts
     # in your inventory file
     
@@ -173,7 +205,8 @@
     register: swarm_node_running
 
   - name: Start swarm node if not already running
-    shell: docker run --restart=always -l swarm_join=true -d -v {{ swarm_node_list }}:/cluster swarm  join --addr={{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'] }}:2375 file:///cluster
+    shell: docker run --restart=always -l swarm_join=true -d -v {{ swarm_node_list }}:/cluster swarm -l fatal join \
+        --addr={{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'] }}:2375 file:///cluster 
     when: swarm_node_running.stdout.find('not running') == 0 
 
   - name: Check whether swarm manager is already running
