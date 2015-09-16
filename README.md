@@ -7,10 +7,7 @@ communication for containers.
 It sets up a docker-swarm cluster across the hosts, with the one having the
 host-var swarm_manager running the manager container.
 
-**Check/modify the vars at the top of playbook.yml to suit your needs.
-Also note that you will need to edit [templates/network_interfaces.j2](https://github.com/eljrax/docker_demo/blob/master/templates/network_interfaces.j2)
-if the interface for your private network is not eth2 as it's currently hard-coded.**
-This will be addressed in a future update.
+**Check/modify the vars at the top of playbook.yml to suit your needs.**
 
 This is developed and tested on Ubuntu 14.04 VMs on the Rackspace cloud 
 using a Cloud Network between the hosts.
