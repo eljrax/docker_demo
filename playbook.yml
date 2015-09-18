@@ -30,8 +30,13 @@
     cloud_network_iface: eth2
     bridge_name: br0
     fluentd_log_directory: /var/log/fluentd_logs
+    consul_data_directory: /var/lib/consul_data
+    consul_recursors:
+        - 83.138.151.81
+        - 83.138.151.80
     swarm_node_list: /root/swarm_node_list
     swarm_cluster_id_file: /root/swarm_cluster_id
+    docker_compose_version: 1.4.1
   remote_user: root
   tasks:
 
@@ -64,7 +69,7 @@
         copy=no
         src={{ ovs_dir }}/{{ ovs_pkg_name}}.tar.gz
 
-  - name: Install build dependencies
+  - name: Install dependencies
     apt: pkg={{ item }} state=latest update_cache=yes cache_valid_time=600
     with_items:
         - build-essential
@@ -82,6 +87,7 @@
         - python-zopeinterface
         - python-twisted-conch
         - libtool
+        - python-pip
 
   - name: Check if debs already exists
     stat: path={{ ovs_dir}}/{{ item }}
@@ -108,11 +114,7 @@
 
   # Install docker-compose
   - name: Install docker-compose
-    get_url: url=https://github.com/docker/compose/releases/download/1.4.0/docker-compose-{{ ansible_system }}-{{ ansible_architecture }}
-        dest=/usr/local/bin/docker-compose 
-
-  - name: Make docker-compose executable
-    file: path=/usr/local/bin/docker-compose mode=770
+    pip: name=docker-compose version={{ docker_compose_version }}
 
   # Install the OVS packages separately due to https://github.com/ansible/ansible/issues/9235
   - name: Install ovs common
@@ -182,39 +184,46 @@
   - name: Restart docker
     service: name=docker state=restarted
     when: defaults_changed.changed
-    # Install and set up docker swarm - set swarm_manager=1 on one of the hosts
-    # in your inventory file
+
     
     # This script is pure convenience and not part of day to day runnings
   - name: Put clean-up script on servers
     template: src=templates/cleandocker.sh.j2 dest=/usr/local/bin/cleandocker mode=770
-
-    
-  - name: Check whether we already have a swarm cluster running
-    stat: path={{ swarm_node_list }}
-    register: swarm_id_exists
 
     # We use file discovery, but using consul or etcd or something along those
     # lines is usually a bit more robust if you often add or remove hosts
   - name: Write swarm node list
     template: src=templates/swarm_nodes.j2 dest={{ swarm_node_list }}
 
-  # Choosing to not use the docker ansible module here
-  - name: Check whether swarm node is already running
-    shell: docker ps -f label=swarm_join=true | egrep "swarm.*Up" || echo "not running"
-    register: swarm_node_running
+  - name: Create consul config file
+    template: src=templates/consul.json.j2 dest=/etc/consul.json
 
-  - name: Start swarm node if not already running
-    shell: docker run --restart=always -l swarm_join=true -d -v {{ swarm_node_list }}:/cluster swarm -l fatal join \
-        --addr={{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'] }}:2375 file:///cluster 
-    when: swarm_node_running.stdout.find('not running') == 0 
+  - name: Install docker-py as a workaround for Ansible issue
+    pip: name=docker-py version=1.2.3
 
-  - name: Check whether swarm manager is already running
-    shell: docker ps -f label=swarm_manager=true | egrep "swarm.*Up" || echo "not running"
-    register: swarm_manager_running
+    # This puts a file in /root/swarm_manager which you can source
+    # to set DOCKER_HOST in order to use swarm rather than the local
+    # docker instance.
+  - name: Put swarm_manager on hosts
+    template: src=templates/swarm_manager.j2 dest=/root/swarm_manager
+
+    # In this demo, we only use one consul server. That's not adviseable in
+    # production. However an appropriate consul.json is put on the other hosts as
+    # well, so to spin up additional servers, simply start a progrium/consul
+    # container with -retry-join=$ip_of_container_on_swarm_manager
+  - name: Start consul server container
+    docker: image=progrium/consul name=consul_server state=started
+        restart_policy=always
+        command='-server -config-file=/etc/consul.json'
+        volumes=/etc/consul.json:/etc/consul.json
     when: swarm_manager is defined
-
-  - name: Run the swarm manager
-    shell: docker run --restart=always -l swarm_manager=true -d -v {{ swarm_node_list }}:/cluster -p 2376:2375 swarm manage file:///cluster
-    when: swarm_manager is defined and swarm_manager_running.stdout.find('not running') == 0
-
+    
+    # Set up docker swarm - set swarm_manager=1 on one of the hosts
+    # in your inventory file
+  - name: Start swarm manager container
+    docker: image=swarm name=swarm_manager state=started
+        restart_policy=always
+        command='manage file:///cluster'
+        volumes={{ swarm_node_list }}:/cluster
+        ports=2376:2375
+    when: swarm_manager is defined
