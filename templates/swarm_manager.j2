@@ -1,0 +1,9 @@
+{% set manager_ip=[] %}
+{% for host in groups['docker'] %}
+{% if 'swarm_manager' in hostvars[host] %}
+{% set b = manager_ip.append(hostvars[host]['ansible_' +
+cloud_network_iface]['ipv4']['address']) %}
+{% endif %}
+{% endfor %}
+{% set c = manager_ip|join(' ') %}
+export DOCKER_HOST={{ c }}:2376
