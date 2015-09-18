@@ -94,7 +94,7 @@ docker.4a2ac25a64dc     {"source":"stdout","log":"test from another node","conta
 
 And to verify the swarm working:
 ```
-root@el-docker-demo-2:~# export DOCKER_HOST=tcp://10.10.10.1:2376
+root@el-docker-demo-2:~# source ~/swarm_manager
 root@el-docker-demo-2:~# for i in {1..50} ; do docker run -ti centos:7 /bin/sh -c 'echo swarm from node 2' ; done
 # Switch to your ansible host
 root@el-docker-demo-admin:~# ansible -oi inventory docker -m shell -a "docker ps -a --no-trunc | grep 'from node 2' | wc -l"
