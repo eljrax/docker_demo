@@ -83,12 +83,13 @@ And to test the networking setup:
 # centos:7 and called it crosstest)
 root@el-docker-demo-1:~# netcat_container=$(docker -H 10.10.10.1:2375 run -d crosstest nc -l 1234)
 root@el-docker-demo-1:~# docker -H 10.10.10.1:2375 inspect -f '{{.NetworkSettings.IPAddress}}' $netcat_container
-172.17.64.99
+172.17.64.27
 # Switch to one of the other hosts
 root@el-docker-demo-2:~# docker run --rm -ti crosstest /bin/sh -c 'echo test from another node | nc 172.17.64.99 1234'
 # Back on host1
-root@el-docker-demo-1:~# docker logs $netcat_container
-test from another node
+root@el-docker-demo-1:~# grep $netcat_container /var/log/fluentd_logs/docker.[0-9]*
+/var/log/fluentd_logs/docker.20150918.b52002e5f37da2ee6.log:20150918T180446+0100
+docker.4a2ac25a64dc     {"source":"stdout","log":"test from another node","container_id":"4a2ac25a64dc03b996a973228be9cb513079cb2ac8e4539b05a09ca1a310e6a8","container_name":"/elated_torvalds"}
 ```
 
 And to verify the swarm working:
