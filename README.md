@@ -12,6 +12,9 @@ host-var swarm_manager running the manager container.
 This is developed and tested on Ubuntu 14.04 VMs on the Rackspace cloud 
 using a Cloud Network between the hosts.
 
+A reboot after the playbook has finished running is advisable - or in some
+circumstances required!
+
 Also note that you need to do the subnetting yourself, and set the
 docker_range host-var in the inventory to split up the ranges docker will
 allocate to containers. See [inventory.sample](https://github.com/eljrax/docker_demo/blob/master/inventory.sample) for an example
@@ -24,7 +27,9 @@ Once you have run the play, you should be able to log in to the host you
 specified as swarm_manager in the inventory and see this
 
 ```
-# docker -H 10.10.10.1:2376 info
+# Make sure we communicate with the swarm manager, and not local docker instance
+root@el-docker-demo-1:~# source ~/swarm_manager
+root@el-docker-demo-1:~# docker info
 Containers: 34
 Images: 14
 Role: primary
@@ -50,7 +55,6 @@ CPUs: 6
 Total Memory: 11.57 GiB
 Name: a5bd8ccdb9d3
 ```
-Note that the swarm manager is running on port 2376.
 
 And to test the networking setup:
 ```
