@@ -23,7 +23,7 @@ Note: It will open up the UFW firewall entirely on the interface you specify
 as 'cloud_network_iface'. This should be a private network shared between the
 hosts.
 
-Once you have run the play, you should be able to log in to the host you
+Once you have run the play and rebooted the hosts, you should be able to log in to the host you
 specified as swarm_manager in the inventory and see this
 
 ```
@@ -56,12 +56,34 @@ Total Memory: 11.57 GiB
 Name: a5bd8ccdb9d3
 ```
 
+The playbook does create and start a consul server container on the
+`swarm_manager` host, and writes /etc/consul.json on all the others. For the
+purposes of the demo, I'm running with a single consul master. But in
+production, you definitely want at least three!
+Do test this, try this:
+
+```
+root@el-docker-demo-1:~# CONSUL_SERVER="$(docker inspect -f '{{.NetworkSettings.IPAddress}}' consul_server)"
+root@el-docker-demo-1:~# docker run -ti --rm progrium/consul -data-dir=/consul_data -retry-join=$CONSUL_SERVER -data-dir=/tmp/consul -dc=dc1 &
+...
+==> Consul agent running!
+         Node name: '619951e7ee9b'
+        Datacenter: 'dc1'
+...
+    2015/09/18 16:51:06 [INFO] agent: Joining cluster...
+    2015/09/18 16:51:06 [INFO] agent: (LAN) joining: [172.17.64.18]
+# Then do a lookup for that node name:
+root@el-docker-demo-1:~# dig +short @$CONSUL_SERVER 619951e7ee9b.node.dc1.consul
+172.17.128.31
+```
+
 And to test the networking setup:
 ```
-# Start a netcat container on host1 listening on 1234
+# Start a netcat container on host1 listening on 1234 (I just built one from
+# centos:7 and called it crosstest)
 root@el-docker-demo-1:~# netcat_container=$(docker -H 10.10.10.1:2375 run -d crosstest nc -l 1234)
-root@el-docker-demo-1:~# docker -H 10.10.10.1:2375 inspect $netcat_container | grep \"IPAdd
-        "IPAddress": "172.17.64.99",
+root@el-docker-demo-1:~# docker -H 10.10.10.1:2375 inspect -f '{{.NetworkSettings.IPAddress}}' $netcat_container
+172.17.64.99
 # Switch to one of the other hosts
 root@el-docker-demo-2:~# docker run --rm -ti crosstest /bin/sh -c 'echo test from another node | nc 172.17.64.99 1234'
 # Back on host1
