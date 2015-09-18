@@ -1,0 +1,15 @@
+
+{
+  "datacenter": "dc1",
+  "data_dir": "{{ consul_data_directory }}",
+  "log_level": "INFO",
+  "node_name": "consul_server_{{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'].split('.')[-1] }}",
+  "server": true,
+  "watches": [],
+  "ports": {
+        "dns": 53
+        },
+  "enable_syslog": false,
+  "bootstrap_expect": {% if 'swarm_manager' in hostvars[inventory_hostname] %} {{ 1 }} {% else %} 0 {% endif %},
+  "recursors": [ "{{ consul_recursors | join('", "') }}" ]
+}
