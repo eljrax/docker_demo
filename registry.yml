@@ -55,6 +55,8 @@
     register: local_certificate
     sudo: no
 
+  - name: Remove default nginx vhost, freeing up port 80
+    file: path=/etc/nginx/sites-enabled/default state=absent
 
   - name: create server key and certificate
     local_action: shell /bin/bash --login -c 'openssl req -new -nodes -x509 -subj "/C=/ST=/L=/O=/CN={{docker_registry_host}}/subjectAltName=IP:{{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'] }}" -days 3650 -keyout ./ssl/{{docker_registry_host}}.key -out ./ssl/{{docker_registry_host}}.crt -extensions v3_ca'
