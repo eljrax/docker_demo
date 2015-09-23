@@ -1,0 +1,42 @@
+web:
+  image: ${REGISTRY_HOST}/apache
+  restart: always
+  dns: ${CONSUL_SERVER}
+  environment:
+    - JOIN_IP=${CONSUL_SERVER}
+  volumes:
+    - /opt/demo_app/wordpress:/var/www/html
+
+app:
+  image: ${REGISTRY_HOST}/app
+  restart: always
+  dns: ${CONSUL_SERVER}
+  environment:
+    - JOIN_IP=${CONSUL_SERVER}
+  volumes:
+    - /opt/demo_app/wordpress:/var/www/html
+
+db: 
+  image: ${REGISTRY_HOST}/mysql
+  restart: always
+  dns: ${CONSUL_SERVER}
+  environment:
+    - JOIN_IP=${CONSUL_SERVER}
+    - MYSQL_ROOT_PASSWORD
+    - "constraint:node==node1"
+  volumes:
+    - /opt/demo_app/mysql_data:/var/lib/mysql/
+
+lb:
+  image: ${REGISTRY_HOST}/lb
+  restart: always
+  dns: ${CONSUL_SERVER}
+  environment:
+    - JOIN_IP=${CONSUL_SERVER}
+    - NS_IP=${CONSUL_SERVER}
+    - NS_PORT=53
+    - DOMAINS=blog.example.com
+    - TARGET=demo-app.web.service.consul
+    - KEEP_TAGS=true
+  ports:
+    - "80:80"
