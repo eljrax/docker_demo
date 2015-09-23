@@ -23,11 +23,12 @@ $ start_consul_container.sh &
 $ docker inspect -f '{{.NetworkSettings.IPAddress}}' consul_server_1
 172.17.64.198
 $ export JOIN_IP=172.17.64.198
-$ docker run -ti -v /var/www/html:/var/www/html -e JOIN_IP=$JOIN_IP --dns=$JOIN_IP -ti $INVENTORY_HOST/apache
+$ docker run -ti -v /var/www/html:/var/www/html -e JOIN_IP=$JOIN_IP --dns=$JOIN_IP $INVENTORY_HOST/apache
 ```
 
 The apache container will start, and register itself with the consul cluster.
 The lb container runs nginx, which using LUA scripting load balances between
 all containers that has registered as the 'web' service. 
 
-See docker-compose.yml for an example of how these containers work together.
+See
+[docker-compose.yml](https://github.com/eljrax/docker_demo/blob/master/docker_files/docker-compose.yml) for an example of how these containers work together.
