@@ -1,0 +1,20 @@
+#!/usr/bin/env bash
+
+{% if 'swarm_manager' in hostvars[inventory_hostname] %}
+docker run --name consul_server_{{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'].split('.')[-1] }} -ti -v /etc/consul.json:/etc/consul.json \
+progrium/consul -server -config-file=/etc/consul.json
+{% else %}
+{% set manager_ip=[] %}
+{% for host in groups['docker'] %}
+{% if 'swarm_manager' in hostvars[host] %}
+{% set b = manager_ip.append(hostvars[host]['ansible_' + cloud_network_iface]['ipv4']['address']) %}
+{% endif %}
+{% endfor %}
+{% set c = manager_ip|join(' ') %}
+{% set c = c.split('.')[-1] %}
+source /root/swarm_manager
+JOIN_IP="$(docker inspect -f '{{ '{{.NetworkSettings.IPAddress }}' }}' consul_server_{{ c }})"
+unset DOCKER_HOST
+docker run --name consul_server_{{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'].split('.')[-1] }} -ti \
+-v /etc/consul.json:/etc/consul.json progrium/consul -server -config-file=/etc/consul.json -retry-join=$JOIN_IP
+{% endif %}

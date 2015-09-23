@@ -204,6 +204,9 @@
   - name: Create consul config file
     template: src=templates/consul.json.j2 dest=/etc/consul.json
 
+  - name: Create consul container start script (convenience only)
+    template: src=templates/start_consul_container.sh.j2 dest=/usr/local/bin/start_consul_container.sh mode=770
+
   - name: Install docker-py as a workaround for Ansible issue
     pip: name=docker-py version=1.3.1
 
