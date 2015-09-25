@@ -192,7 +192,7 @@
     when: defaults_changed.changed
 
     
-    # This script is pure convenience and not part of day to day runnings
+    # This script is pure convenience during the demo and not part of day to day runnings
   - name: Put clean-up script on servers
     template: src=templates/cleandocker.sh.j2 dest=/usr/local/bin/cleandocker mode=770
 
@@ -221,7 +221,7 @@
     # well, so to spin up additional servers, simply start a progrium/consul
     # container with -retry-join=$ip_of_container_on_swarm_manager
   - name: Start consul server container
-    docker: image=progrium/consul name=consul_server state=started
+    docker: image=progrium/consul name=consul_server_{{ hostvars[inventory_hostname]['ansible_' + cloud_network_iface]['ipv4']['address'].split('.')[-1] }} state=started
         restart_policy=always
         command='-server -config-file=/etc/consul.json'
         volumes=/etc/consul.json:/etc/consul.json
@@ -235,6 +235,10 @@
         command='manage file:///cluster'
         volumes={{ swarm_node_list }}:/cluster
         ports=2376:2375
+    when: swarm_manager is defined
+
+  - name: Create swarm manager container start script (convenience only)
+    template: src=templates/start_swarm_manager.sh.j2 dest=/usr/local/bin/start_swarm_manager_container.sh mode=770
     when: swarm_manager is defined
 
 
