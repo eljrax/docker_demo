@@ -39,6 +39,10 @@
     docker_compose_version: 1.4.1
     docker_registry_host: el-docker-demo-1.example.com
     docker_registry_port: 443 
+#   Comment the line below to NOT pull and build the images from
+#   https://github.com/eljrax/docker_demo/tree/master/docker_files
+#   and push them to the private registry
+    build_images: true
 #   Uncomment  to require credentials to access the docker registry
 #    docker_registry_users:
 #        - name: docker
@@ -95,6 +99,7 @@
         - python-twisted-conch
         - libtool
         - python-pip
+        - byobu
 
   - name: Check if debs already exists
     stat: path={{ ovs_dir}}/{{ item }}
@@ -241,9 +246,20 @@
     template: src=templates/start_swarm_manager.sh.j2 dest=/usr/local/bin/start_swarm_manager_container.sh mode=770
     when: swarm_manager is defined
 
+  - name: Create and place script to build and push dockerfiles from demo git repo
+    template: src=templates/build_and_push.sh.j2 dest=/usr/local/bin/build_and_push.sh mode=770
 
 ####### Docker registry on swarm_manager #########
 
   - name: Set up docker registry on swarm_manager
     include: registry.yml
     when: swarm_manager is defined
+ 
+# This will git clone this repository:
+# https://github.com/eljrax/docker_demo/tree/master/docker_files
+# and build the images from the sub directories, and push them
+# to the private registry on the swarm_manager host. 
+  - name: Run script to build and push containers to registry
+    shell: /usr/local/bin/build_and_push.sh
+    when: build_images is defined and swarm_manager is defined
+    ignore_errors: true

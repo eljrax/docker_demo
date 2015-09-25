@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+{% set manager_ip=[] %}
+{% for host in groups['docker'] %}
+{% if 'swarm_manager' in hostvars[host] %}
+    {% set b = manager_ip.append(hostvars[host]['ansible_' + cloud_network_iface]['ipv4']['address']) %}
+{% endif %}
+{% endfor %}
+{% set c = manager_ip|join(' ') %}
+
+if [ -d ./docker_demo ] ; then
+        echo "./docker_demo already exists, exiting..."
+        exit 1
+fi
+
+git clone https://github.com/eljrax/docker_demo.git
+cd docker_demo/docker_files
+registry_host="{{ c }}"
+images=("apache" "lb" "mysql" "app")
+for image in ${images[@]} ; do
+        echo -e "=========\nBuilding and pushing $image =========\n"
+        cd $image
+        docker build -t $registry_host/$image .
+        docker push $registry_host/$image
+        cd ..
+done
