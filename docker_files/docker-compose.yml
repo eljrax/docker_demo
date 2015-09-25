@@ -2,6 +2,9 @@ web:
   image: ${REGISTRY_HOST}/apache
   restart: always
   dns: ${CONSUL_SERVER}
+  log_driver: "syslog"
+    log_opt:
+        syslog-address: "udp://${FLUENTD_SERVER}:5140"
   environment:
     - JOIN_IP=${CONSUL_SERVER}
   volumes:
@@ -11,6 +14,9 @@ app:
   image: ${REGISTRY_HOST}/app
   restart: always
   dns: ${CONSUL_SERVER}
+  log_driver: "syslog"
+    log_opt:
+        syslog-address: "udp://${FLUENTD_SERVER}:5140"
   environment:
     - JOIN_IP=${CONSUL_SERVER}
   volumes:
@@ -20,6 +26,9 @@ db:
   image: ${REGISTRY_HOST}/mysql
   restart: always
   dns: ${CONSUL_SERVER}
+  log_driver: "syslog"
+    log_opt:
+        syslog-address: "udp://${FLUENTD_SERVER}:5140"
   environment:
     - JOIN_IP=${CONSUL_SERVER}
     - MYSQL_ROOT_PASSWORD
@@ -31,6 +40,9 @@ lb:
   image: ${REGISTRY_HOST}/lb
   restart: always
   dns: ${CONSUL_SERVER}
+  log_driver: "syslog"
+    log_opt:
+        syslog-address: "udp://${FLUENTD_SERVER}:5140"
   environment:
     - JOIN_IP=${CONSUL_SERVER}
     - NS_IP=${CONSUL_SERVER}
