@@ -32,3 +32,7 @@ all containers that has registered as the 'web' service.
 
 See
 [docker-compose.yml](https://github.com/eljrax/docker_demo/blob/master/docker_files/docker-compose.yml) for an example of how these containers work together.
+It's worth noting that at the time of writing, the version of docker-compose
+that comes with a `pip` install does NOT support variable interpolation. The
+file in this directory was written for docker-compose built from a git clone of
+the master branch (dabf1e8657).
