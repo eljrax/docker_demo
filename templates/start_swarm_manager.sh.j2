@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+
+docker run -d --restart=always -l swarm_manager=true -v /root/swarm_node_list:/cluster -p 2376:2375 swarm manage file:///cluster
