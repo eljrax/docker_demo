@@ -1,6 +1,7 @@
 web:
   image: ${REGISTRY_HOST}/apache
   restart: always
+  command: /run.sh
   dns: ${CONSUL_SERVER}
   log_driver: "syslog"
   log_opt:
@@ -13,6 +14,7 @@ web:
 app:
   image: ${REGISTRY_HOST}/app
   restart: always
+  command: /run.sh
   dns: ${CONSUL_SERVER}
   log_driver: "syslog"
   log_opt:
