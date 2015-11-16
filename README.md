@@ -1,3 +1,4 @@
+**Note that Docker release 1.9 has support for networking drivers which you may find easier to use rather than open vSwitch as used in this playbook.**
 # Docker Demo Playbook
 
 This is a quick and dirty playbook which sets up an openvswitch mesh
